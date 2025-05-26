@@ -26,6 +26,8 @@ class FindFunctionArgs(SearchBaseArgs):
         default=None,
         description="Optional class name if searching for a specific class method. Leave empty for standalone functions.",
     )
+    
+
 
     @model_validator(mode="after")
     def validate_names(self) -> "FindFunctionArgs":
@@ -54,10 +56,34 @@ class FindFunctionArgs(SearchBaseArgs):
             param_str += f", class_name={self.class_name}"
         return f"{self.name}({param_str})"
 
-
+from moatless.actions.model import Observation
 class FindFunction(SearchBaseAction):
     args_schema: ClassVar[Type[ActionArguments]] = FindFunctionArgs
 
+    def _execute(self, args: FindFunctionArgs, file_context, workspace) -> Observation:
+        # 调用已定义的搜索函数
+        result = self._search(args)
+
+        # 处理返回结果构造日志信息
+        if not result.hits:
+            message = f"❌ 未找到函数 `{args.function_name}`。"
+            expect_correction = True
+        else:
+            file_list = [hit.file_path for hit in result.hits]
+            message = f"✅ 找到函数 `{args.function_name}`，出现在 {len(file_list)} 个文件中：{', '.join(file_list)}"
+            expect_correction = False
+
+        # 构造 Observation 作为动作执行结果
+        return Observation(
+            message=message,
+            extra={
+                "function_name": args.function_name,
+                "hits": [hit.model_dump() for hit in result.hits],
+                "file_pattern": args.file_pattern,
+                "class_name": args.class_name,
+            },
+            expect_correction=expect_correction,
+        )
     def _search(self, args: FindFunctionArgs) -> SearchCodeResponse:
         logger.info(
             f"{self.name}: {args.function_name} (class_name: {args.class_name}, file_pattern: {args.file_pattern})"

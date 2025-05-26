@@ -154,7 +154,8 @@ class EpicSplitter(NodeParser):
 
         for node in nodes_with_progress:
             file_path = node.metadata.get("file_path")
-            content = node.content()
+            # content = node.content()
+            content = node.get_content()# wwh add
 
             try:
                 starttime = time.time_ns()

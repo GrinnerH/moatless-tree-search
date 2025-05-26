@@ -39,9 +39,16 @@ class Action(BaseModel, ABC):
         """
         Execute the action.
         """
-
+        
         message = self._execute(args, file_context=file_context, workspace=workspace)
-        return Observation.create(message)
+        # print(f"[Action类中的message]：\n{message}")
+        # return Observation.create(message)
+        if isinstance(message, Observation):
+            return message
+        elif isinstance(message, str):
+            return Observation(message=message)
+        else:
+            raise TypeError(f"Unsupported return type from _execute: {type(message)}")
 
     def _execute(
         self,

@@ -4,8 +4,8 @@ import logging
 import traceback
 from typing import List, Type, Dict, Any
 
-from pydantic import BaseModel, Field, PrivateAttr, model_validator, ValidationError
-
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
+from moatless.codeblocks.codeblocks import ValidationError #wwh add
 from moatless.actions.action import Action
 from moatless.actions.model import (
     ActionArguments,
@@ -80,16 +80,29 @@ class ActionAgent(BaseModel):
         self.actions = actions
         self._action_map = {action.args_schema: action for action in actions}
 
+    # @model_validator(mode="after")
+    # def verify_actions(self) -> "ActionAgent":
+    #     for action in self.actions:
+    #         if not isinstance(action, Action):
+    #             raise ValidationError(
+    #                 f"Invalid action type: {type(action)}. Expected Action subclass."
+    #             )
+    #         if not hasattr(action, "args_schema"):
+    #             raise ValidationError(
+    #                 f"Action {action.__class__.__name__} is missing args_schema attribute"
+    #             )
+    #     return self
+    #wwh add
     @model_validator(mode="after")
     def verify_actions(self) -> "ActionAgent":
         for action in self.actions:
             if not isinstance(action, Action):
-                raise ValidationError(
-                    f"Invalid action type: {type(action)}. Expected Action subclass."
+                raise ValueError(
+                    f"Invalid action type: {type(action)}. Expected subclass of Action."
                 )
             if not hasattr(action, "args_schema"):
-                raise ValidationError(
-                    f"Action {action.__class__.__name__} is missing args_schema attribute"
+                raise ValueError(
+                    f"Action {action.__class__.__name__} is missing required attribute 'args_schema'."
                 )
         return self
 
@@ -102,11 +115,18 @@ class ActionAgent(BaseModel):
 
         node.possible_actions = [action.name for action in self.actions]
         system_prompt = self.generate_system_prompt()
+        # print("\n📢 [System Prompt]：")
+        # print(system_prompt)
         action_args = [action.args_schema for action in self.actions]
+        # print(f"\n[ACTIONS]: \n{action_args}")
 
+        # build prompt
         messages = self.message_generator.generate(node)
+        
+
         logger.info(f"Node{node.node_id}: Build action with {len(messages)} messages")
         try:
+            # 调用 LLM
             completion_response = self._completion.create_completion(
                 messages, system_prompt=system_prompt, response_model=action_args
             )
@@ -116,10 +136,16 @@ class ActionAgent(BaseModel):
                     ActionStep(action=action)
                     for action in completion_response.structured_outputs
                 ]
+            print("\n🏃‍ [Structured Actions]")
+            for act in completion_response.structured_outputs:
+                print(" -", act.name, act.model_dump())
 
             node.assistant_message = completion_response.text_response
+            print("\n📨 [LLM text Response]")
+            print(f"[Text]\n {node.assistant_message}\n[/Text]")
 
             node.completions["build_action"] = completion_response.completion
+            # print(f"\nnode.completions['build_action']: {completion_response.completion}\n")
         except Exception as e:
             node.terminal = True
             node.error = traceback.format_exc()
@@ -134,15 +160,19 @@ class ActionAgent(BaseModel):
                 logger.warning(
                     f"Node{node.node_id}: Build action failed with error: {e}"
                 )
+                print(f"\n[Except exception as e (last_completion)]\n")
                 return
             else:
+                print(f"\n[Except exception as e]\n")
                 raise e
 
         if node.action is None:
+            print("node.action is None")
             return
 
         duplicate_node = node.find_duplicate()
         if duplicate_node:
+            print(f"[Node Duplicate]")
             node.is_duplicate = True
             logger.info(
                 f"Node{node.node_id} is a duplicate to Node{duplicate_node.node_id}. Skipping execution."
@@ -151,11 +181,18 @@ class ActionAgent(BaseModel):
 
         logger.info(f"Node{node.node_id}: Execute {len(node.action_steps)} actions")
         for action_step in node.action_steps:
+            print(f"[ACTION]: Node{node.node_id} execute {action_step} actions")
             self._execute(node, action_step)
 
     def _execute(self, node: Node, action_step: ActionStep):
         action = self._action_map.get(type(action_step.action))
+        print(f"\n[进入 ActionAgent类 _execute EXECUTE DEBUG] Executing action: {action_step.action.name} ({type(action_step.action)})\n")
         if not action:
+            print(
+                "[EXECUTE ERROR]"
+                f"Node{node.node_id}: Action {node.action.name} not found in action map. "
+                f"Available actions: {self._action_map.keys()}"
+            )
             logger.error(
                 f"Node{node.node_id}: Action {node.action.name} not found in action map. "
                 f"Available actions: {self._action_map.keys()}"
@@ -180,6 +217,12 @@ class ActionAgent(BaseModel):
             logger.info(
                 f"Executed action: {action_step.action.name}. "
                 f"Terminal: {action_step.observation.terminal if node.observation else False}. "
+                f"Output: {action_step.observation.message if node.observation else None}"
+            )
+            print(
+                "[EXECUTE OUTPUT]"
+                f"Executed action: {action_step.action.name}. \n"
+                f"Terminal: {action_step.observation.terminal if node.observation else False}.\n "
                 f"Output: {action_step.observation.message if node.observation else None}"
             )
 

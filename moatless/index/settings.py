@@ -18,7 +18,8 @@ class CommentStrategy(Enum):
 
 class IndexSettings(BaseModel):
     embed_model: str = Field(
-        default="text-embedding-3-small", description="The embedding model to use."
+        default="voyage-code-2", description="The embedding model to use."
+        #wwh add text-embedding-3-small
     )
     dimensions: int = Field(
         default=1536, description="The number of dimensions of the vectors."

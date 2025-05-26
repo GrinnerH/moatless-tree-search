@@ -349,6 +349,9 @@ class SearchTree(BaseModel):
     def _expand(self, node: Node, force_expansion: bool = False) -> Node:
         """Expand the node and return a child node."""
 
+        
+        print(f"[进入 _expand] Expanding node {node.node_id}")
+
         # Check if any action step was not executed, if so return the node
         if node.action_steps and node.has_unexecuted_actions():
             self.log(
@@ -357,8 +360,10 @@ class SearchTree(BaseModel):
             return node
 
         child_node = self.expander.expand(node, self, force_expansion)
+        # print(f"[CHILD NODE]:\n{child_node}")
 
         if not node.action_steps and node.assistant_message:
+            print(f"[ERROR ACTION STEPS IS None]")
             child_node.user_message = "You're an autonomous AI agent that must respond with one of the provided functions"
 
         # Only add feedback if this is the second expansion from this node
@@ -375,6 +380,7 @@ class SearchTree(BaseModel):
 
     def _simulate(self, node: Node):
         """Simulate a playout by executing the action and evaluating the result."""
+        print(f"[进入_simulate Simulating node]: {node.node_id}: {node.message}")
 
         if node.observation:
             logger.info(f"Node{node.node_id}: Action already executed. Skipping.")

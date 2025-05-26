@@ -611,10 +611,12 @@ def find_potential_matches(old_str, new_content):
 
                 differences = []
                 if window.count("\n") != old_str.count("\n"):
+                    found_lines = window.count('\n') + 1
+                    expected_lines = old_str.count('\n') + 1
                     differences.append(
-                        f"Line break count differs: found {window.count('\n') + 1} lines, "
-                        f"expected {old_str.count('\n') + 1} lines"
+                        f"Line break count differs: found {found_lines} lines, expected {expected_lines} lines"
                     )
+
 
                 # Check for character differences
                 added = window_chars - old_str_chars

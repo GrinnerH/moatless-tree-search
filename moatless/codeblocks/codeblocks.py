@@ -278,8 +278,12 @@ class BlockSpan:
 
 
 @dataclass
-class ValidationError:
+class ValidationError(Exception):
     error: str
+
+    #wwh add
+    def __str__(self):
+        return f"ValidationError: {self.error}"
 
 
 @dataclass(eq=False, repr=False, slots=True)

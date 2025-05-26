@@ -915,9 +915,10 @@ class CodeIndex:
         return len(embedded_nodes), embedded_tokens
 
     def persist(self, persist_dir: str):
+        # from llama_index.core.storage.docstore import SimpleDocumentStore
         self._vector_store.persist(persist_dir)
         self._docstore.persist(
-            os.path.join(persist_dir, docstore.types.DEFAULT_PERSIST_FNAME)
+            os.path.join(persist_dir, "docstore.json")
         )
         self._settings.persist(persist_dir)
 

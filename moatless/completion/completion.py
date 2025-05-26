@@ -4,6 +4,7 @@ import os
 from enum import Enum
 from textwrap import dedent
 from typing import Optional, Union, List, Any
+from pydantic import create_model
 
 import litellm
 import tenacity
@@ -81,6 +82,9 @@ class CompletionModel(BaseModel):
     model_api_key: Optional[str] = Field(
         default=None, description="The API key for the model", exclude=True
     )
+    api_version: Optional[str] = Field(
+        default=None, description="The Azure OpenAI API version"
+    ) #wwh add
     response_format: Optional[LLMResponseFormat] = Field(
         None, description="The response format expected from the LLM"
     )
@@ -114,15 +118,56 @@ class CompletionModel(BaseModel):
         system_prompt: str,
         response_model: List[type[StructuredOutput]] | type[StructuredOutput],
     ) -> CompletionResponse:
+        # print(f"[response_model]:\n{response_model}")
         if not response_model:
             raise CompletionRuntimeError(f"Response model is required for completion")
 
         if isinstance(response_model, list) and len(response_model) > 1:
-            avalabile_actions = [
+            available_actions = [
                 action for action in response_model if hasattr(action, "name")
             ]
-            if not avalabile_actions:
+            if not available_actions:
                 raise CompletionRuntimeError(f"No actions found in {response_model}")
+            
+            #         # Create Union[...] type dynamically
+            # ActionUnionType = Union[tuple(available_actions)]
+
+            # # Define validator dynamically
+            # def validate_action_type(cls, data: dict) -> dict:
+            #     if not isinstance(data, dict):
+            #         raise ValidationError("Expected dictionary input")
+
+            #     action_type = data.get("action_type")
+            #     if not action_type:
+            #         return data
+
+            #     action_class = next(
+            #         (action for action in available_actions if action.name == action_type),
+            #         None,
+            #     )
+            #     if not action_class:
+            #         action_names = [a.name for a in available_actions]
+            #         raise ValidationError(
+            #             f"Unknown action type: {action_type}. "
+            #             f"Available: {', '.join(action_names)}"
+            #         )
+
+            #     action_data = data.get("action")
+            #     if not action_data:
+            #         raise ValidationError("Action data is required")
+
+            #     data["action"] = action_class.model_validate(action_data)
+            #     return data
+
+            # # Dynamically create Pydantic model with validator
+            
+            # TakeAction = create_model(
+            #     "TakeAction",
+            #     __base__=StructuredOutput,
+            #     action=(ActionUnionType, ...),
+            #     action_type=(str, ...),
+            #     __validators__={"validate_action": model_validator(mode="before")(validate_action_type)},
+            # )
 
             class TakeAction(StructuredOutput):
                 action: Union[tuple(response_model)] = Field(...)
@@ -143,13 +188,13 @@ class CompletionModel(BaseModel):
                     action_class = next(
                         (
                             action
-                            for action in avalabile_actions
+                            for action in available_actions
                             if action.name == action_type
                         ),
                         None,
                     )
                     if not action_class:
-                        action_names = [action.name for action in avalabile_actions]
+                        action_names = [action.name for action in available_actions]
                         raise ValidationError(
                             f"Unknown action type: {action_type}. Available actions: {', '.join(action_names)}"
                         )
@@ -161,17 +206,38 @@ class CompletionModel(BaseModel):
 
                     data["action"] = action_class.model_validate(action_data)
                     return data
+            
 
             response_model = TakeAction
+            # print(f"生成的response_model内容：{response_model.model_json_schema()}")
 
         system_prompt += dedent(f"""\n# Response format
         You must respond with only a JSON object that match the following json_schema:\n
 
         {json.dumps(response_model.model_json_schema(), indent=2, ensure_ascii=False)}
 
-        Make sure to return an instance of the JSON, not the schema itself.""")
+        Make sure to return an instance of the JSON, not the schema itself.
+    
+        """)
+        # FindFunction,
+        # You must choose exactly one action_type from the following:
+        # [RunTests, Finish, Reject, TriggerPoC, ExtractFunctionSource, GeneratePoCInput]
+        # Do not invent your own tool names. 'action_type' must exactly match the above '[...]' One of the names in '.
 
+#         system_prompt += """
+#         Example:
+#         To extract the function test from main.cpp:
+#         {
+#         "action_type": "ExtractFunctionSource",
+#         "action": {
+#             "file": "main.cpp",
+#             "name": "test"
+#         }
+#         }
+# """
         messages.insert(0, {"role": "system", "content": system_prompt})
+        # print(f"\n🧠 [Prompt to LLM] {messages}")
+
 
         retries = tenacity.Retrying(
             retry=tenacity.retry_if_not_exception_type(
@@ -187,6 +253,8 @@ class CompletionModel(BaseModel):
                 completion_response = self._litellm_base_completion(
                     messages=messages, response_format={"type": "json_object"}
                 )
+                
+                # print(f"\n[completion_response]:\n{completion_response}")
 
                 if not completion_response or not completion_response.choices:
                     raise CompletionRuntimeError(
@@ -204,20 +272,29 @@ class CompletionModel(BaseModel):
 
                 if not assistant_message:
                     raise CompletionRuntimeError("Empty response from model")
+                print(f"[assistant_message]:\n{assistant_message}")
 
                 messages.append({"role": "assistant", "content": assistant_message})
 
+                #wwh edit
                 response = response_model.model_validate_json(assistant_message)
+                # print(f"[response]:\n{response}")
 
                 completion = Completion.from_llm_completion(
                     input_messages=messages,
                     completion_response=completion_response,
                     model=self.model,
                 )
-                if hasattr(response, "action"):
+                if hasattr(response, "action") :
                     return CompletionResponse.create(
                         output=response.action, completion=completion
                     )
+    #             if hasattr(response, "action") and hasattr(response, "action_type"):
+    # # 修复：把结构动作名写入 action 实例
+    #                 # response.action.name = response.action_type
+    #                 return CompletionResponse.create(
+    #                     output=response.action, completion=completion
+    #                 )
 
                 return CompletionResponse.create(output=response, completion=completion)
 
@@ -288,6 +365,7 @@ class CompletionModel(BaseModel):
                 timeout=self.timeout,
                 api_base=self.model_base_url,
                 api_key=self.model_api_key,
+                api_version=self.api_version,#wwh add
                 stop=self.stop_words,
                 tools=tools,
                 tool_choice=tool_choice,
@@ -323,7 +401,8 @@ class CompletionModel(BaseModel):
         if "model_api_key" in dump:
             dump["model_api_key"] = None
         if "response_format" in dump:
-            dump["response_format"] = dump["response_format"].value
+            if dump.get("response_format") is not None:
+                dump["response_format"] = dump["response_format"].value
         return dump
 
     @classmethod
