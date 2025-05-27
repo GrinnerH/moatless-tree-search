@@ -581,6 +581,32 @@ class Selector(BaseModel):
         dump["type"] = self.__class__.__name__
         return dump
 
+class VulnPathSelector(Selector):
+    type: Literal["VulnPathSelector"] = "VulnPathSelector"
+
+    def _select_node(self, nodes: List[Node]) -> Node:
+        # ✅ 1. 未访问、reward 高的优先拓展（鼓励探索）
+        unvisited = [
+            n for n in nodes
+            if n.visits == 0 and n.reward and not n.is_finished()
+        ]
+        if unvisited:
+            selected = max(unvisited, key=lambda n: n.reward.value)
+            logger.info(
+                f"🧭 [VulnPathSelector] Unvisited → Node {selected.node_id} "
+                f"(reward={selected.reward.value})"
+            )
+            return selected
+
+        # ✅ 2. fallback：按 reward 降序
+        scored = [(n, n.reward.value if n.reward else 0) for n in nodes]
+        selected = max(scored, key=lambda x: x[1])[0]
+        logger.info(
+            f"🧭 [VulnPathSelector] Fallback → Node {selected.node_id} "
+            f"(reward={selected.reward.value if selected.reward else 'None'})"
+        )
+        return selected
+
 
 class BestFirstSelector(Selector):
     type: Literal["BestFirstSelector"] = "BestFirstSelector"

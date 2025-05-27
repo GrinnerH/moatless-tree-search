@@ -5,7 +5,6 @@ from moatless.file_context import FileContext
 from moatless.index import CodeIndex
 from moatless.runtime.testbed import TestbedEnvironment
 from testbeds.sdk import TestbedSDK
-from moatless.selector import BestFirstSelector
 from moatless.search_tree import SearchTree
 from moatless.completion import CompletionModel
 from moatless.feedback import FeedbackGenerator
@@ -18,6 +17,7 @@ from llama_index.core.storage.docstore import SimpleDocumentStore
 from moatless.agent.vuln_agent import create_vuln_agent
 # from moatless.value_function.vuln_value import VulnRewardFunction
 from moatless.value_function.base import ValueFunction
+from moatless.selector import VulnPathSelector 
 from dotenv import load_dotenv
 load_dotenv()
 print("加载任务描述")
@@ -145,17 +145,23 @@ agent = create_vuln_agent(repository, code_index, completion_model)
 
 value_function = ValueFunction(completion_model=completion_model)
 
+selector = VulnPathSelector(
+    use_average_reward=False,
+    exploitation_weight=1.0,
+    exploration_weight=1.0,
+)
+
 # === 创建 Search Tree ===
 print("🌲 创建搜索树...")
 search_tree = SearchTree.create(
     message=input_message,
     agent=agent,
     file_context=file_context,
-    selector=BestFirstSelector(),
+    selector=selector,
     value_function=value_function,
     feedback_generator=RewardFeedbackGenerator(),
-    max_iterations=5,
-    max_expansions=2,
+    max_iterations=20,
+    max_expansions=5,
     max_depth=10,
     persist_path="trajectory.json",
 )

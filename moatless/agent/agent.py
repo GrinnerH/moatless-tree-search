@@ -122,7 +122,7 @@ class ActionAgent(BaseModel):
 
         # build prompt
         messages = self.message_generator.generate(node)
-        print(f"\n[进入 ActionAgent类 run DEBUG] messages: {messages}\n")
+        # print(f"\n[进入 ActionAgent类 run DEBUG] messages: {messages}\n")
 
         logger.info(f"Node{node.node_id}: Build action with {len(messages)} messages")
         try:
@@ -181,7 +181,7 @@ class ActionAgent(BaseModel):
 
         logger.info(f"Node{node.node_id}: Execute {len(node.action_steps)} actions")
         for action_step in node.action_steps:
-            print(f"[ACTION]: Node{node.node_id} execute {action_step} actions")
+            # print(f"[ACTION]: Node{node.node_id} execute {action_step} actions")
             self._execute(node, action_step)
 
     def _execute(self, node: Node, action_step: ActionStep):

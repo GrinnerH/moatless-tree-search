@@ -4,4 +4,5 @@ from moatless.selector.selector import (
     BestFirstSelector,
     SoftmaxSelector,
     LLMSelector,
+    VulnPathSelector,
 )

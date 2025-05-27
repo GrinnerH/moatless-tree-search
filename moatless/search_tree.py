@@ -21,7 +21,7 @@ from moatless.index.code_index import CodeIndex
 from moatless.node import Node, generate_ascii_tree
 from moatless.repository.repository import Repository
 from moatless.runtime.runtime import RuntimeEnvironment
-from moatless.selector import BestFirstSelector, Selector, SoftmaxSelector, LLMSelector
+from moatless.selector import BestFirstSelector, Selector, SoftmaxSelector, LLMSelector, VulnPathSelector
 from moatless.selector.feedback_selector import FeedbackSelector
 from moatless.value_function.base import ValueFunction
 from moatless.value_function.model import Reward
@@ -33,7 +33,7 @@ logger.setLevel(logging.INFO)
 class SearchTree(BaseModel):
     root: Node = Field(..., description="The root node of the search tree.")
     selector: Union[
-        BestFirstSelector, SoftmaxSelector, LLMSelector, FeedbackSelector
+        VulnPathSelector, BestFirstSelector, SoftmaxSelector, LLMSelector, FeedbackSelector
     ] = Field(..., description="Selector for node selection.")
     agent: ActionAgent = Field(..., description="Agent for generating actions.")
     agent_settings: Optional[AgentSettings] = Field(
@@ -172,6 +172,8 @@ class SearchTree(BaseModel):
                 selector_type = obj["selector"].get("type")
                 if selector_type == "BestFirstSelector":
                     obj["selector"] = BestFirstSelector.model_validate(obj["selector"])
+                elif selector_type == "VulnPathSelector":
+                    obj["selector"] = VulnPathSelector.model_validate(obj["selector"])
                 elif selector_type == "SoftmaxSelector":
                     obj["selector"] = SoftmaxSelector.model_validate(obj["selector"])
                 elif selector_type == "LLMSelector":
@@ -278,6 +280,11 @@ class SearchTree(BaseModel):
                 #     print(f"- {a.name} | args_schema: {getattr(type(a), 'args_schema', None)}")
 
                 self._simulate(new_node)
+                # wwh add
+                # self.log(logger.info, generate_ascii_tree(self.root, use_color=False))
+                print("\n[🌲 当前搜索树结构]")
+                print(generate_ascii_tree(self.root, current=new_node, use_color=True))
+
                 self._backpropagate(new_node)
                 self.maybe_persist()
                 self.log(logger.info, generate_ascii_tree(self.root, new_node))
@@ -417,6 +424,12 @@ class SearchTree(BaseModel):
                     f"Node{node.node_id}: Value function runtime error: {e.message}",
                 )
                 raise  # Re-raise to abort the entire search
+
+            # print("\n[📊 所有节点当前价值]")
+            # for n in self.root.get_all_nodes():
+            #     r = n.reward.value if n.reward else "-"
+            #     v = n.value if n.value else "-"
+            #     print(f"  Node {n.node_id} | Reward: {r} | Accum Value: {v} | Visits: {n.visits}")
 
     def _backpropagate(self, node: Node):
         """Backpropagate the reward up the tree."""
@@ -667,6 +680,8 @@ class SearchTree(BaseModel):
                 selector_type = obj["selector"].get("type")
                 if selector_type == "BestFirstSelector":
                     obj["selector"] = BestFirstSelector.model_validate(obj["selector"])
+                elif selector_type == "VulnPathSelector":
+                    obj["selector"] = VulnPathSelector.model_validate(obj["selector"])
                 elif selector_type == "SoftmaxSelector":
                     obj["selector"] = SoftmaxSelector.model_validate(obj["selector"])
                 elif selector_type == "LLMSelector":

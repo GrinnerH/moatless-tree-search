@@ -53,11 +53,12 @@ class ValueFunction(BaseModel):
             last_message += "# Automatic Reward Assessment\n"
             last_message += f"Action expects a correction. Suggested value: {self.correction_award}\n\n"
 
-        if node.action.name in ["Reject", "Error"]:
-            last_message += "# Automatic Reward Assessment\n"
-            last_message += (
-                f"{node.action.name} action detected. Suggested value: -100\n\n"
-            )
+        # wwh remove
+        # if node.action.name in ["Reject", "Error"]:
+        #     last_message += "# Automatic Reward Assessment\n"
+        #     last_message += (
+        #         f"{node.action.name} action detected. Suggested value: -100\n\n"
+        #     )
 
         # Format the action section
         if node.action.name == "Finish":
