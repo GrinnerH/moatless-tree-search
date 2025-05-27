@@ -35,8 +35,12 @@ class Chat(BaseModel):
         None, description="Path to persist the chat sequence."
     )
 
-    class Config:
-        arbitrary_types_allowed = True
+    # class Config:
+    #     arbitrary_types_allowed = True
+    # wwh edit 
+    model_config = {
+        "arbitrary_types_allowed" : True,
+    }
 
     def send_message(
         self, message: str, attachments: Optional[List[Attachment]] = None

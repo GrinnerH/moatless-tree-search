@@ -130,9 +130,11 @@ class ValueFunction(BaseModel):
             ]
 
         try:
+            print(f"💴 进行价值评估 LLM 响应...")
             completion_response = self.completion_model.create_completion(
                 messages=messages, system_prompt=system_prompt, response_model=Reward
             )
+            # print("[DEBUG] ValueFunction raw response:", completion_response.raw_text)
 
             return completion_response.structured_output, completion_response.completion
 

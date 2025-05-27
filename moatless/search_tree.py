@@ -99,8 +99,12 @@ class SearchTree(BaseModel):
         default_factory=list, description="Event handlers for tree events", exclude=True
     )
 
-    class Config:
-        arbitrary_types_allowed = True
+    # class Config:
+    #     arbitrary_types_allowed = True
+    # wwh edit 
+    model_config = {
+        "arbitrary_types_allowed" : True,
+    }
 
     @classmethod
     def create(
@@ -269,6 +273,10 @@ class SearchTree(BaseModel):
 
             if node:
                 new_node = self._expand(node)
+                # print("[✔️ actions in agent]:")
+                # for a in self.agent.actions:
+                #     print(f"- {a.name} | args_schema: {getattr(type(a), 'args_schema', None)}")
+
                 self._simulate(new_node)
                 self._backpropagate(new_node)
                 self.maybe_persist()

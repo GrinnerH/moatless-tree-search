@@ -17,8 +17,13 @@ _action_args: Dict[str, Type["ActionArguments"]] = {}
 class ActionArguments(StructuredOutput, ABC):
     thoughts: str = Field(..., description="Your reasoning for the action.")
 
-    class Config:
-        title = "Action"
+    # class Config:
+    #     title = "Action"
+    model_config = {
+        "title": "Action",  # 可以被子类覆盖
+        "description": "基础动作参数类型，用于描述动作的意图和参数。",
+        "arbitrary_types_allowed": True  # 支持复杂类型，如 Index、GDB 等对象
+    }
 
     @classmethod
     def get_name(cls) -> str:
@@ -181,8 +186,12 @@ class ActionError(ActionArguments):
 
     error: str = Field(..., description="Error.")
 
-    class Config:
-        title = "Error"
+    # class Config:
+    #     title = "Error"
+    # wwh edit 
+    model_config = {
+        "title" : "Error",
+    }
 
     def to_prompt(self):
         return f"Error: {self.error}"

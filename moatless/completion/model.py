@@ -214,8 +214,12 @@ class NameDescriptor:
 class StructuredOutput(BaseModel):
     name: ClassVar[NameDescriptor] = NameDescriptor()
 
-    class Config:
-        ignored_types = (classproperty,)
+    # class Config:
+    #     ignored_types = (classproperty,)
+    # wwh edit
+    model_config = {
+        "ignored_types": (classproperty,)
+    }
 
     @classproperty
     def description(cls):

@@ -19,8 +19,6 @@ def create_vuln_agent(repository, code_index, completion_model):
         Finish(),
         Reject(),
     ]
-    
-
     return ActionAgent(
         completion=completion_model,
         actions=actions,

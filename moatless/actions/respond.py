@@ -11,8 +11,12 @@ class MessageArgs(ActionArguments):
 
     message: str = Field(..., description="The message to send to the user.")
 
-    class Config:
-        title = "SendMessage"
+    # class Config:
+    #     title = "SendMessage"
+    # wwh edit 
+    model_config = {
+        "title" : "SendMessage",
+    }
 
     def to_prompt(self):
         return f"Message: {self.message}"

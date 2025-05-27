@@ -122,13 +122,13 @@ class ActionAgent(BaseModel):
 
         # build prompt
         messages = self.message_generator.generate(node)
-        
+        print(f"\n[进入 ActionAgent类 run DEBUG] messages: {messages}\n")
 
         logger.info(f"Node{node.node_id}: Build action with {len(messages)} messages")
         try:
             # 调用 LLM
             completion_response = self._completion.create_completion(
-                messages, system_prompt=system_prompt, response_model=action_args
+                messages, system_prompt=system_prompt, response_model=self.actions
             )
 
             if completion_response.structured_outputs:
@@ -136,9 +136,9 @@ class ActionAgent(BaseModel):
                     ActionStep(action=action)
                     for action in completion_response.structured_outputs
                 ]
-            print("\n🏃‍ [Structured Actions]")
-            for act in completion_response.structured_outputs:
-                print(" -", act.name, act.model_dump())
+            # print("\n🏃‍ [Structured Actions]")
+            # for act in completion_response.structured_outputs:
+            #     print(" -", act.name, act.model_dump())
 
             node.assistant_message = completion_response.text_response
             print("\n📨 [LLM text Response]")
@@ -186,7 +186,7 @@ class ActionAgent(BaseModel):
 
     def _execute(self, node: Node, action_step: ActionStep):
         action = self._action_map.get(type(action_step.action))
-        print(f"\n[进入 ActionAgent类 _execute EXECUTE DEBUG] Executing action: {action_step.action.name} ({type(action_step.action)})\n")
+        # print(f"\n[进入 ActionAgent类 _execute EXECUTE DEBUG] Executing action: {action_step.action.name} ({type(action_step.action)})\n")
         if not action:
             print(
                 "[EXECUTE ERROR]"
@@ -221,7 +221,7 @@ class ActionAgent(BaseModel):
             )
             print(
                 "[EXECUTE OUTPUT]"
-                f"Executed action: {action_step.action.name}. \n"
+                f"Executed action: {action_step.action}. \n"
                 f"Terminal: {action_step.observation.terminal if node.observation else False}.\n "
                 f"Output: {action_step.observation.message if node.observation else None}"
             )
@@ -243,6 +243,89 @@ class ActionAgent(BaseModel):
 
         return system_prompt
 
+    # def generate_few_shots(self) -> str:
+    #     few_shot_examples = []
+    #     for action in self.actions:
+    #         examples = action.get_few_shot_examples()
+    #         if examples:
+    #             few_shot_examples.extend(examples)
+
+    #     prompt = ""
+    #     if few_shot_examples:
+    #         prompt += "\n\n# Examples\nHere are some examples of how to use the available actions:\n\n"
+    #         for i, example in enumerate(few_shot_examples):
+    #             if self.completion.response_format == LLMResponseFormat.REACT:
+    #                 prompt += f"\n**Example {i + 1}**"
+    #                 action_data = example.action.model_dump()
+    #                 thoughts = action_data.pop("thoughts", "")
+
+    #                 # Special handling for StringReplace and CreateFile action
+    #                 if example.action.__class__.__name__ in [
+    #                     "StringReplaceArgs",
+    #                     "CreateFileArgs",
+    #                     "AppendStringArgs",
+    #                     "InsertLinesArgs",
+    #                 ]:
+    #                     prompt += f"\nTask: {example.user_input}"
+    #                     prompt += f"\nThought: {thoughts}\n"
+    #                     prompt += f"Action: {str(example.action.name)}\n"
+
+    #                     if example.action.__class__.__name__ == "StringReplaceArgs":
+    #                         prompt += f"<path>{action_data['path']}</path>\n"
+    #                         prompt += (
+    #                             f"<old_str>\n{action_data['old_str']}\n</old_str>\n"
+    #                         )
+    #                         prompt += (
+    #                             f"<new_str>\n{action_data['new_str']}\n</new_str>\n"
+    #                         )
+    #                     elif example.action.__class__.__name__ == "AppendStringArgs":
+    #                         prompt += f"<path>{action_data['path']}</path>\n"
+    #                         prompt += (
+    #                             f"<new_str>\n{action_data['new_str']}\n</new_str>\n"
+    #                         )
+    #                     elif example.action.__class__.__name__ == "CreateFileArgs":
+    #                         prompt += f"<path>{action_data['path']}</path>\n"
+    #                         prompt += f"<file_text>\n{action_data['file_text']}\n</file_text>\n"
+    #                     elif example.action.__class__.__name__ == "InsertLinesArgs":
+    #                         prompt += f"<path>{action_data['path']}</path>\n"
+    #                         prompt += f"<insert_line>{action_data['insert_line']}</insert_line>\n"
+    #                         prompt += (
+    #                             f"<new_str>\n{action_data['new_str']}\n</new_str>\n"
+    #                         )
+    #                 else:
+    #                     # Original JSON format for other actions
+    #                     prompt += (
+    #                         f"\nTask: {example.user_input}"
+    #                         f"\nThought: {thoughts}\n"
+    #                         f"Action: {str(example.action.name)}\n"
+    #                         f"{json.dumps(action_data)}\n\n"
+    #                     )
+
+    #             elif self.completion.response_format == LLMResponseFormat.JSON:
+    #                 action_json = {
+    #                     "action": example.action.model_dump(),
+    #                     "action_type": example.action.name,
+    #                 }
+    #                 prompt += f"User: {example.user_input}\nAssistant:\n```json\n{json.dumps(action_json, indent=2)}\n```\n\n"
+
+    #             elif self.completion.response_format == LLMResponseFormat.TOOLS:
+    #                 tools_json = {"tool": example.action.name}
+    #                 if self.thoughts_in_action:
+    #                     tools_json.update(example.action.model_dump())
+    #                 else:
+    #                     tools_json.update(
+    #                         example.action.model_dump(exclude={"thoughts"})
+    #                     )
+
+    #                 prompt += f"Task: {example.user_input}\n"
+    #                 if not self.thoughts_in_action:
+    #                     prompt += f"<thoughts>{example.action.thoughts}</thoughts>\n"
+    #                 prompt += json.dumps(tools_json)
+    #                 prompt += "\n\n"
+
+    #     return prompt
+
+    #wwh edit
     def generate_few_shots(self) -> str:
         few_shot_examples = []
         for action in self.actions:
@@ -251,79 +334,17 @@ class ActionAgent(BaseModel):
                 few_shot_examples.extend(examples)
 
         prompt = ""
-        if few_shot_examples:
+        if few_shot_examples and self.completion.response_format == LLMResponseFormat.JSON:
             prompt += "\n\n# Examples\nHere are some examples of how to use the available actions:\n\n"
-            for i, example in enumerate(few_shot_examples):
-                if self.completion.response_format == LLMResponseFormat.REACT:
-                    prompt += f"\n**Example {i + 1}**"
-                    action_data = example.action.model_dump()
-                    thoughts = action_data.pop("thoughts", "")
-
-                    # Special handling for StringReplace and CreateFile action
-                    if example.action.__class__.__name__ in [
-                        "StringReplaceArgs",
-                        "CreateFileArgs",
-                        "AppendStringArgs",
-                        "InsertLinesArgs",
-                    ]:
-                        prompt += f"\nTask: {example.user_input}"
-                        prompt += f"\nThought: {thoughts}\n"
-                        prompt += f"Action: {str(example.action.name)}\n"
-
-                        if example.action.__class__.__name__ == "StringReplaceArgs":
-                            prompt += f"<path>{action_data['path']}</path>\n"
-                            prompt += (
-                                f"<old_str>\n{action_data['old_str']}\n</old_str>\n"
-                            )
-                            prompt += (
-                                f"<new_str>\n{action_data['new_str']}\n</new_str>\n"
-                            )
-                        elif example.action.__class__.__name__ == "AppendStringArgs":
-                            prompt += f"<path>{action_data['path']}</path>\n"
-                            prompt += (
-                                f"<new_str>\n{action_data['new_str']}\n</new_str>\n"
-                            )
-                        elif example.action.__class__.__name__ == "CreateFileArgs":
-                            prompt += f"<path>{action_data['path']}</path>\n"
-                            prompt += f"<file_text>\n{action_data['file_text']}\n</file_text>\n"
-                        elif example.action.__class__.__name__ == "InsertLinesArgs":
-                            prompt += f"<path>{action_data['path']}</path>\n"
-                            prompt += f"<insert_line>{action_data['insert_line']}</insert_line>\n"
-                            prompt += (
-                                f"<new_str>\n{action_data['new_str']}\n</new_str>\n"
-                            )
-                    else:
-                        # Original JSON format for other actions
-                        prompt += (
-                            f"\nTask: {example.user_input}"
-                            f"\nThought: {thoughts}\n"
-                            f"Action: {str(example.action.name)}\n"
-                            f"{json.dumps(action_data)}\n\n"
-                        )
-
-                elif self.completion.response_format == LLMResponseFormat.JSON:
-                    action_json = {
-                        "action": example.action.model_dump(),
-                        "action_type": example.action.name,
-                    }
-                    prompt += f"User: {example.user_input}\nAssistant:\n```json\n{json.dumps(action_json, indent=2)}\n```\n\n"
-
-                elif self.completion.response_format == LLMResponseFormat.TOOLS:
-                    tools_json = {"tool": example.action.name}
-                    if self.thoughts_in_action:
-                        tools_json.update(example.action.model_dump())
-                    else:
-                        tools_json.update(
-                            example.action.model_dump(exclude={"thoughts"})
-                        )
-
-                    prompt += f"Task: {example.user_input}\n"
-                    if not self.thoughts_in_action:
-                        prompt += f"<thoughts>{example.action.thoughts}</thoughts>\n"
-                    prompt += json.dumps(tools_json)
-                    prompt += "\n\n"
+            for example in few_shot_examples:
+                action_json = {
+                    "action_type": example.action.name,
+                    "action": example.action.model_dump(),
+                }
+                prompt += f"User: {example.user_input}\nAssistant:\n```json\n{json.dumps(action_json, indent=2)}\n```\n\n"
 
         return prompt
+
 
     def model_dump(self, **kwargs) -> Dict[str, Any]:
         dump = super().model_dump(**kwargs)

@@ -17,15 +17,19 @@ from moatless.completion.completion import CompletionModel
 class ScriptArgs(ActionArguments):
     target_file: str = Field(..., description="与脚本关联的目标源文件路径（如 test.cpp）")
     script: str = Field(..., description="要运行的 Python 脚本内容，可包含格式错误")
-
+    model_config = {
+        "title": "script",
+        "description": "用于运行 Python 脚本模拟漏洞利用或验证行为"
+    }
     def to_prompt(self) -> str:
         return f"script('{self.target_file}', '''{self.script[:30]}...''')"
 
     def short_summary(self) -> str:
         return f"script({os.path.basename(self.target_file)})"
 
-    class Config:
-        title = "script"
+    # class Config:
+    #     title = "script"
+    #     description = "运行 Python 脚本，并使用 LLM 修复其格式错误（如缩进）"
 
     @model_validator(mode="after")
     def check_script(self) -> "ScriptArgs":
@@ -38,7 +42,7 @@ class Script(Action):
     name: ClassVar[str] = "script"
     description: ClassVar[str] = "运行 Python 脚本，并使用 LLM 修复其格式错误（如缩进）"
     args_schema: ClassVar[Type[ActionArguments]] = ScriptArgs
-
+    # args_schema: ScriptArgs
     completion_model: CompletionModel = Field(..., exclude=True)
 
     def _execute(
@@ -118,17 +122,43 @@ Code:
     def get_few_shot_examples(cls) -> List[FewShotExample]:
         return [
             FewShotExample.create(
-                user_input="运行一个脚本：print('hello')",
-                action=ScriptArgs(
-                    target_file="dummy.cpp",
-                    script="print('hello')"
-                )
-            ),
-            FewShotExample.create(
-                user_input="执行一个复杂脚本，使用 os.system 编译 cpp",
+                user_input="Run a Python script to compile and execute test.cpp.",
                 action=ScriptArgs(
                     target_file="test.cpp",
-                    script="import os\nos.system('g++ test.cpp -o a.out && ./a.out')"
+                    script="import os\\nos.system('g++ test.cpp -o test && ./test')"
                 )
-            ),
+            )
         ]
+    
+
+    @classmethod
+    def get_value_function_prompt(cls) -> str:
+        return """Your role is to evaluate the **last executed action** of the search tree that our AI agents are traversing in order to validate potential vulnerabilities in target programs.
+
+    The agent has used the `script` tool to execute a custom Python script. This tool allows agents to compile the program, run it with crafted inputs, or automate test sequences aimed at **triggering memory-safety violations**.
+
+    Important: Scripts can simulate exploits, mutate input payloads, or validate runtime behavior. Focus on whether the script’s purpose and effect meaningfully contributed to detecting, reproducing, or demonstrating a vulnerability.
+
+    Your task is twofold:
+    1. **Evaluation**: Assess whether the script execution advanced the vulnerability hypothesis. Did it produce a fault, unexpected output, or internal program failure?
+    2. **Alternative Feedback**: Recommend another exploit strategy or input transformation that could help trigger unsafe behavior or reveal the root cause.
+    """
+
+    @classmethod
+    def get_evaluation_criteria(cls, trajectory_length: int | None = None) -> List[str]:
+        if trajectory_length is not None and trajectory_length < 3:
+            return [
+                "Hypothesis Forming: Does the script attempt a plausible way to trigger an overflow or runtime failure?",
+                "Automation Value: Is the script enabling new or large-scale input generation / testing?",
+                "Compile or Execution Success: Did the script run correctly, even if the exploit did not trigger?",
+            ]
+        else:
+            return [
+                "Impactful Behavior: Did the script execution lead to a crash, corrupted output, or fault?",
+                "Exploit Simulation: Was the action a meaningful simulation of real exploit attempts?",
+                "Edge Case Targeting: Did the script try lengths, characters, or data layouts likely to induce memory issues?",
+                "Avoidance of Duplication: Does this attempt differ materially from prior PoC attempts?",
+            ]
+
+
+

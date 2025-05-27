@@ -27,8 +27,9 @@ class Action(BaseModel, ABC):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    # wwh remove
+    # def __init__(self, **data):
+    #     super().__init__(**data)
 
     def execute(
         self,
@@ -70,56 +71,56 @@ class Action(BaseModel, ABC):
     def get_name(cls) -> str:
         """Returns the name of the action class as a string."""
         return cls.__name__
-
+    
+    #评估标准
     @classmethod
     def get_evaluation_criteria(cls, trajectory_length: int | None = None) -> List[str]:
         if trajectory_length < 3:
             return [
-                "Exploratory Actions: Recognize that initial searches and information-gathering steps are essential and should not be heavily penalized if they don't yield immediate results.",
-                "Appropriateness of Action: Evaluate if the action is logical given the agent's current knowledge and the early stage of problem-solving.",
+                "Exploratory Step: At early stages, exploratory actions (e.g., extracting functions, probing input behaviors) are valuable even without immediate results.",
+            "Tool Appropriateness: Was the selected tool (e.g., CodeBrowser, debugger, script) suitable for this stage of verification?",
+            "Hypothesis Formation: Does the action reflect a sound hypothesis about where a vulnerability might exist or how it might manifest?",
             ]
 
         else:
             return [
-                "Solution Quality: Assess the logical changes, contextual fit, and overall improvement without introducing new issues.",
-                "Progress Assessment: Evaluate the agent's awareness of solution history, detection of repetitive actions, and planned next steps.",
-                "Repetitive or Redundant Actions: Detect if the agent is repeating the same unsuccessful or redundant actions without making progress. Pay close attention to the agent's history and outputs indicating lack of progress.",
+            "Evidence Strength: Did the action produce concrete indicators of vulnerability (e.g., crash, fault, memory corruption)?",
+            "Verification Progress: Does this action measurably advance the agent's path toward confirming or rejecting a vulnerability?",
+            "Redundancy Avoidance: Is the action meaningfully different from previous attempts, or is it repeating a path that already failed?",
+            "Input/State Coverage: Did the action explore new inputs or execution states that had not yet been tested?",
+            "Exploitability Signal: Does the observation suggest proximity to an exploitable condition (e.g., buffer overwritten, return address changed)?",
             ]
 
     @classmethod
-    def get_reward_scale(cls, trajectory_length) -> List[RewardScaleEntry]:
+    def get_reward_scale(cls, trajectory_length: int) -> List[RewardScaleEntry]:
         return [
             RewardScaleEntry(
-                min_value=75,
+                min_value=90,
                 max_value=100,
-                description="The action significantly advances the solution.",
+                description="The action conclusively confirms the vulnerability (e.g., exploit triggered, memory corruption observed, critical condition met)."
             ),
             RewardScaleEntry(
-                min_value=50,
-                max_value=74,
-                description="The action contributes positively towards solving the problem.",
+                min_value=70,
+                max_value=89,
+                description="The action reveals strong evidence of vulnerability (e.g., crash, unsafe memory access, overwritten buffers)."
             ),
             RewardScaleEntry(
-                min_value=25,
-                max_value=49,
-                description="The action is acceptable but may have some issues.",
+                min_value=40,
+                max_value=69,
+                description="The action contributes moderately to verification (e.g., extracting vulnerable code, setting a precise breakpoint, testing edge-case inputs)."
             ),
             RewardScaleEntry(
-                min_value=0,
-                max_value=24,
-                description="The action has minimal impact or minor negative consequences.",
+                min_value=10,
+                max_value=39,
+                description="The action is weakly useful or only exploratory (e.g., repeating a known step, inspecting irrelevant code)."
             ),
             RewardScaleEntry(
-                min_value=-49,
-                max_value=-1,
-                description="The code change is inappropriate, unhelpful, introduces new issues, or redundantly repeats previous changes without making further progress. The Git diff does not align with instructions or is unnecessary.",
-            ),
-            RewardScaleEntry(
-                min_value=-100,
-                max_value=-50,
-                description="The code change is counterproductive, causing significant setbacks or demonstrating persistent repetition without learning. The agent fails to recognize completed tasks and continues to attempt redundant actions.",
+                min_value=-50,
+                max_value=9,
+                description="The action is redundant, misdirected, or fails to advance verification (e.g., repeating past failure, tool misuse, wrong context)."
             ),
         ]
+
 
     @staticmethod
     def generate_reward_scale_entries(
@@ -161,13 +162,30 @@ class Action(BaseModel, ABC):
         Get the base prompt for the value function.
         This method can be overridden in subclasses to provide action-specific prompts.
         """
-        return """Your role is to evaluate the **last executed action** of the search tree that our AI agents are traversing, to help us determine the best trajectory to solve a programming issue. The agent is responsible for identifying and modifying the correct file(s) in response to the problem statement.
+        # wwh edit
+        return """
+Your role is to evaluate the **last executed action** taken by an autonomous agent traversing a search tree to validate the presence of software vulnerabilities.
 
-Important: While line numbers may be referenced in the initial problem description, they can shift as changes are made to the file. Focus on whether the agent is modifying the correct logical parts of the code, rather than strictly matching the initially mentioned line numbers. What matters is that the right section of code is being modified, even if its current line number differs from what was originally specified.
+The agent is working within a target program to identify and confirm the existence of memory-related or logic-based vulnerabilities. It operates using tools like code extractors, debuggers, and script execution environments. Its goal is not to fix bugs, but to **systematically test hypotheses** that can expose unsafe behaviors (e.g., buffer overflows, memory corruption, logic flaws).
 
-At this stage, the agent is still working on the solution. Your task is twofold:
-1. **Evaluation**: Assess whether the change done by the **last executed action** is appropriate for addressing the problem and whether the agent is on the right path to resolving the issue. Verify that the correct sections of code are being modified, regardless of their current line numbers.
-2. **Alternative Feedback**: Independently of your evaluation, provide guidance for an alternative problem-solving branch. This ensures parallel exploration of different solution paths.
+Important: Rather than focusing on line-level accuracy or code edits, you should assess whether the **executed action moves the verification forward**. A forward step could mean clarifying a code structure, triggering a fault, discovering a memory inconsistency, or narrowing down a vulnerability candidate.
+
+At this stage, the agent has not yet fully confirmed the vulnerability but is actively exploring. Your task is twofold:
+
+1. **Evaluation**: Determine whether the most recent action meaningfully contributes to verifying a potential vulnerability. Consider:
+   - Did the agent uncover suspicious memory access patterns?
+   - Did the action reveal any abnormal program behavior (e.g., crashes, corrupt data)?
+   - Was a relevant function, class, or execution path extracted or tested?
+   - Did the inputs chosen expose new state transitions or side effects?
+   - Was the selected tool appropriate and applied effectively?
+
+2. **Alternative Feedback**: Propose a high-level alternative exploration path that could strengthen the investigation. This might involve:
+   - Analyzing a different function or branch
+   - Adjusting breakpoint targets or inputs
+   - Testing additional edge-case inputs
+   - Applying a different tool to gather complementary evidence
+
+Avoid recommending actions already taken unless their result was incomplete. Your guidance should support diverse, hypothesis-driven verification strategies.
 """
 
     @classmethod
@@ -213,6 +231,8 @@ At this stage, the agent is still working on the solution. Your task is twofold:
         """
         if not _actions:
             cls._load_actions()
+        # for key, action_cls in _actions.items():
+        #     print(f"[REGISTERED] key: {key} → class: {action_cls.__name__}")
 
         action = _actions.get(action_name)
         if action:
@@ -229,7 +249,11 @@ At this stage, the agent is still working on the solution. Your task is twofold:
             module = importlib.import_module(full_module_name)
             for name, obj in module.__dict__.items():
                 if isinstance(obj, type) and issubclass(obj, Action) and obj != Action:
-                    _actions[name] = obj
+                    # _actions[name] = obj
+                    #wwh edit
+                    key = getattr(obj, "name", obj.__name__)  # 优先使用 .name 属性
+                    _actions[key] = obj
+                    # print(f"_actions[key]:{_actions.keys()}")
 
     @classmethod
     def model_validate(

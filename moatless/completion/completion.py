@@ -118,7 +118,8 @@ class CompletionModel(BaseModel):
         system_prompt: str,
         response_model: List[type[StructuredOutput]] | type[StructuredOutput],
     ) -> CompletionResponse:
-        # print(f"[response_model]:\n{response_model}")
+        # print("[🧪 response_model type]", type(response_model))
+        # print("[🧪 raw response_model content]", response_model)
         if not response_model:
             raise CompletionRuntimeError(f"Response model is required for completion")
 
@@ -128,6 +129,57 @@ class CompletionModel(BaseModel):
             ]
             if not available_actions:
                 raise CompletionRuntimeError(f"No actions found in {response_model}")
+            
+
+            # ✅ 外部传入 Action 实例列表
+            from moatless.actions.action import Action
+            
+            valid_actions = [a for a in available_actions if hasattr(type(a), "args_schema")]
+
+            if not valid_actions:
+                raise RuntimeError("No valid actions found in `available_actions`.")
+
+            ActionUnionType = Union[tuple(type(a).args_schema for a in valid_actions)]
+
+
+            # ✅ 动作验证器
+            def validate_action_type(cls, data: dict) -> dict:
+                if not isinstance(data, dict):
+                    raise TypeError("Expected dictionary input")
+
+                action_type = data.get("action_type")
+                if not action_type:
+                    raise ValueError("Missing 'action_type' field")
+
+                # ✅ 找到匹配的 Action 实例
+                action_obj = next((a for a in valid_actions if a.name == action_type), None)
+                if not action_obj:
+                    valid_names = [a.name for a in valid_actions]
+                    raise ValueError(
+                        f"Unknown action type: {action_type}. Available: {', '.join(valid_names)}"
+                    )
+
+                action_data = data.get("action")
+                if not action_data:
+                    raise ValueError("Missing 'action' field")
+
+                try:
+                    schema_cls = type(action_obj).args_schema
+                    data["action"] = schema_cls.model_validate(action_data)
+                    return data
+                except Exception as e:
+                    raise ValidationError(f"Failed to validate '{action_type}' args: {e}")
+
+            # ✅ 构造最终 Pydantic 模型（结构化响应入口）
+            TakeAction = create_model(
+                "TakeAction",
+                __base__=StructuredOutput,  # 如果你继承的是 StructuredOutput，而不是 BaseModel
+                action=(ActionUnionType, ...),
+                action_type=(str, ...),
+                __validators__={
+                    "validate_action": model_validator(mode="before")(validate_action_type)
+                }
+            )
             
             #         # Create Union[...] type dynamically
             # ActionUnionType = Union[tuple(available_actions)]
@@ -169,47 +221,53 @@ class CompletionModel(BaseModel):
             #     __validators__={"validate_action": model_validator(mode="before")(validate_action_type)},
             # )
 
-            class TakeAction(StructuredOutput):
-                action: Union[tuple(response_model)] = Field(...)
-                action_type: str = Field(
-                    ..., description="The type of action being taken"
-                )
+            
+            # class TakeAction(StructuredOutput):
+            #     action: Union[tuple(response_model)] = Field(...)
+            #     action_type: str = Field(
+            #         ..., description="The type of action being taken"
+            #     )
 
-                @model_validator(mode="before")
-                def validate_action(cls, data: dict) -> dict:
-                    if not isinstance(data, dict):
-                        raise ValidationError("Expected dictionary input")
+            #     @model_validator(mode="before")
+            #     def validate_action(cls, data: dict) -> dict:
+            #         if not isinstance(data, dict):
+            #             raise ValidationError("Expected dictionary input")
 
-                    action_type = data.get("action_type")
-                    if not action_type:
-                        return data
+            #         action_type = data.get("action_type")
+            #         if not action_type:
+            #             return data
 
-                    # Find the correct action class based on action_type
-                    action_class = next(
-                        (
-                            action
-                            for action in available_actions
-                            if action.name == action_type
-                        ),
-                        None,
-                    )
-                    if not action_class:
-                        action_names = [action.name for action in available_actions]
-                        raise ValidationError(
-                            f"Unknown action type: {action_type}. Available actions: {', '.join(action_names)}"
-                        )
+            #         # Find the correct action class based on action_type
+            #         action_class = next(
+            #             (
+            #                 action
+            #                 for action in available_actions
+            #                 if action.name == action_type
+            #             ),
+            #             None,
+            #         )
+            #         if not action_class:
+            #             action_names = [action.name for action in available_actions]
+            #             # wwh edit
+            #             raise  ValueError(
+            #                 f"Unknown action type: {action_type}. Available actions: {', '.join(action_names)}"
+            #             )
+                        
+            #             # ValidationError(
+            #             #         f"Unknown action type: {action_type}. Available actions: {', '.join(action_names)}"
+            #             #     )
 
-                    # Validate the action data using the specific action class
-                    action_data = data.get("action")
-                    if not action_data:
-                        raise ValidationError("Action data is required")
+            #         # Validate the action data using the specific action class
+            #         action_data = data.get("action")
+            #         if not action_data:
+            #             raise ValidationError("Action data is required")
 
-                    data["action"] = action_class.model_validate(action_data)
-                    return data
+            #         data["action"] = action_class.model_validate(action_data)
+            #         return data
             
 
             response_model = TakeAction
-            # print(f"生成的response_model内容：{response_model.model_json_schema()}")
+            # print(f"生成的TakeAction内容：{response_model.model_json_schema()}")
 
         system_prompt += dedent(f"""\n# Response format
         You must respond with only a JSON object that match the following json_schema:\n
@@ -272,7 +330,7 @@ class CompletionModel(BaseModel):
 
                 if not assistant_message:
                     raise CompletionRuntimeError("Empty response from model")
-                print(f"[assistant_message]:\n{assistant_message}")
+                print(f"[🏃assistant_message]:\n{assistant_message}")
 
                 messages.append({"role": "assistant", "content": assistant_message})
 

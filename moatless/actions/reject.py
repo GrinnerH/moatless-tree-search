@@ -13,8 +13,11 @@ class RejectArgs(ActionArguments):
 
     rejection_reason: str = Field(..., description="Explanation for rejection.")
 
-    class Config:
-        title = "Reject"
+    # class Config:
+    #     title = "Reject"
+    model_config = {
+        "title": "Reject",
+    }
 
     def to_prompt(self):
         return f"Reject with reason: {self.rejection_reason}"
@@ -24,6 +27,8 @@ class RejectArgs(ActionArguments):
 
 
 class Reject(Action):
+    # wwh add
+    name: ClassVar[str] = "Reject"
     args_schema: ClassVar[Type[ActionArguments]] = RejectArgs
 
     def execute(

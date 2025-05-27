@@ -8,8 +8,12 @@ from moatless.completion.model import StructuredOutput
 class Reward(StructuredOutput):
     """A structured output for providing reward values and feedback for actions."""
 
-    class Config:
-        title = "ProvideReward"
+    # class Config:
+    #     title = "ProvideReward"
+    # wwh edit 
+    model_config = {
+        "title" : "ProvideReward",
+    }
 
     explanation: Optional[str] = Field(
         default=None,

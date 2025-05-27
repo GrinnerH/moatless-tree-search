@@ -26,8 +26,12 @@ class FinishArgs(ActionArguments):
         description="Explain why the task is complete and how it's verified with new tests.",
     )
 
-    class Config:
-        title = "Finish"
+    # class Config:
+    #     title = "Finish"
+    # wwh edit 
+    model_config = {
+        "title" : "Finish",
+    }
 
     def to_prompt(self):
         return f"Finish with reason: {self.finish_reason}"
@@ -37,6 +41,8 @@ class FinishArgs(ActionArguments):
 
 
 class Finish(Action):
+    # wwh add
+    name: ClassVar[str] = "Finish"
     args_schema: ClassVar[Type[ActionArguments]] = FinishArgs
 
     enforce_patch: bool = Field(
@@ -70,61 +76,69 @@ class Finish(Action):
     @classmethod
     def get_evaluation_criteria(cls, trajectory_length: int) -> List[str]:
         return [
-            "**Full Trajectory Review:** Evaluate the complete sequence of actions taken by the agent leading to this finish action. Assess whether the trajectory represents an efficient and logical path to the solution.",
-            "**Solution Correctness and Quality:** Verify that all changes made throughout the trajectory logically address the problem statement. Ensure the changes fit contextually within the existing codebase without introducing new issues. Confirm syntactic correctness and that there are no syntax errors or typos.",
-            "**Testing Requirements (Critical):**",
-            " * **Mandatory Test Updates:** The trajectory MUST include actions that either update existing tests or add new tests to verify the solution. A score of 75 or higher CANNOT be given without proper test coverage.",
-            " * **Test Coverage Quality:** Evaluate whether the tests added or modified throughout the trajectory adequately cover the changes, including edge cases and error conditions.",
-            " * **Test Execution Results:** Verify that all tests are passing after the complete sequence of changes.",
-            "**Assessment of Complete Trajectory:** Evaluate if the sequence of actions taken represents the most optimal path to the solution, or if unnecessary steps were taken.",
-            "**Verification of Task Completion:** Confirm that all aspects of the original issue have been addressed through the sequence of actions, including implementation, testing, and documentation where applicable.",
+            "**Exploit Confirmation**: Has the trajectory provided clear runtime evidence of a triggered vulnerability (e.g., crash, fault, corrupted memory)?",
+            "**Trajectory Completeness**: Does the sequence of actions represent a logical and complete path to confirming the vulnerability?",
+            "**No Further Verification Needed**: Is the vulnerability status beyond reasonable doubt, such that further steps would be redundant?",
+            "**Consistency of Reasoning**: Does the agent’s justification for finishing match the runtime and static evidence collected so far?",
+            "**Red Flag Detection**: Has the agent made any hasty or unjustified conclusions based on partial results?",
         ]
+
 
     @classmethod
     def get_reward_scale(cls, trajectory_length) -> List[RewardScaleEntry]:
-        return cls.generate_reward_scale_entries(
-            [
-                (
-                    90,
-                    100,
-                    "The complete trajectory perfectly resolves the issue with optimal code modifications AND includes comprehensive test updates/additions. All tests pass and cover all relevant scenarios. No further improvements needed.",
-                ),
-                (
-                    75,
-                    89,
-                    "The trajectory successfully resolves the issue AND includes proper test updates/additions. All tests pass, though minor improvements to test coverage might be beneficial. REQUIRES test modifications to qualify for this range.",
-                ),
-                (
-                    50,
-                    74,
-                    "The trajectory resolves the core issue but has gaps in test coverage OR the solution path wasn't optimal. May include cases where implementation is correct but tests were not adequately updated.",
-                ),
-                (
-                    25,
-                    49,
-                    "The trajectory partially resolves the issue but lacks proper test coverage AND has other significant gaps such as incomplete implementation or inefficient solution path.",
-                ),
-                (
-                    0,
-                    24,
-                    "The trajectory shows some progress but fails to properly resolve the issue AND lacks necessary test updates. The finish action was premature.",
-                ),
-                (
-                    -49,
-                    -1,
-                    "The trajectory is inappropriate with major gaps in both implementation and testing. The finish action indicates a clear misunderstanding of the requirements.",
-                ),
-                (
-                    -100,
-                    -50,
-                    "The trajectory is entirely incorrect, potentially introducing new issues, and completely lacks test coverage. The finish action is entirely premature.",
-                ),
-            ]
-        )
+        return cls.generate_reward_scale_entries([
+            (
+                90,
+                100,
+                "The vulnerability has been conclusively confirmed through observation of a crash, fault, or exploit behavior. The agent demonstrated a complete and valid verification path. No further action is needed."
+            ),
+            (
+                75,
+                89,
+                "Strong evidence of a vulnerability was observed, and the reasoning is coherent. Minor validation steps may still be possible but are not strictly necessary."
+            ),
+            (
+                50,
+                74,
+                "The agent shows high confidence in a likely vulnerability, but the final observation is inconclusive (e.g., no actual crash, uncertain signal). More verification would be ideal."
+            ),
+            (
+                25,
+                49,
+                "Partial progress is made, but the decision to finish is premature. The vulnerability is not yet confirmed."
+            ),
+            (
+                0,
+                24,
+                "The trajectory has not reached confirmation, and the finish action is clearly unjustified."
+            ),
+            (
+                -49,
+                -1,
+                "The agent misinterprets benign behavior as exploit evidence. Major misunderstanding of the problem."
+            ),
+            (
+                -100,
+                -50,
+                "The agent finishes without any meaningful verification steps. Total misdiagnosis of the situation."
+            ),
+        ])
+
 
     @classmethod
     def get_value_function_prompt(cls) -> str:
-        return """Your role is to evaluate the executed action of the search tree that our AI agents are traversing, with the goal of ensuring that a complete and verified solution is in place. The agent believes that it has finished solving the programming issue."""
+        return """Your role is to evaluate the **Finish action** in a vulnerability verification search tree. The agent has signaled that it believes the vulnerability has been successfully confirmed or triggered.
+
+    This action represents the **termination** of the verification process. You must assess whether the prior sequence of steps — including source inspection, dynamic analysis, input testing, or exploit attempts — has led to a **credible and sufficient** confirmation of the vulnerability.
+
+    Your task is twofold:
+    1. **Evaluation**: Analyze the reasoning and evidence leading up to this finish action. Determine whether a vulnerability has been conclusively demonstrated, such as via:
+    - Observation of a crash, memory corruption, or assertion failure
+    - Reproduction of exploit conditions
+    - Visibility into overwritten data, hijacked control flow, or invalid state
+
+    2. **Alternative Feedback**: If the claim is premature, suggest a final validation step or deeper inspection needed to fully confirm the issue.
+    """
 
     @classmethod
     def get_few_shot_examples(cls) -> List[FewShotExample]:
