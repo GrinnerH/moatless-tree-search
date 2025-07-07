@@ -638,7 +638,7 @@ class SearchTree(BaseModel):
                 node_id=0,
                 max_expansions=max_expansions,
                 user_message=message,
-                reward=Reward(value=100),
+                reward=Reward(value=30),
                 file_context=file_context,
             )
 
