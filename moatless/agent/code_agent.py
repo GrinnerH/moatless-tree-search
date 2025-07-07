@@ -3,24 +3,27 @@ import logging
 from typing import List
 
 from moatless.actions import (
-    FindClass,
-    FindFunction,
-    FindCodeSnippet,
-    SemanticSearch,
-    ViewCode,
+    # FindClass,
+    # FindFunction,
+    # FindCodeSnippet,
+    # SemanticSearch,
+    # ViewCode,
+    Debugger,
+    CodeBrowser,
+    Script
 )
 from moatless.actions.action import Action
-from moatless.actions.append_string import AppendString
-from moatless.actions.apply_change_and_test import ApplyCodeChangeAndTest
-from moatless.actions.code_change import RequestCodeChange
-from moatless.actions.create_file import CreateFile
-from moatless.actions.edit import ClaudeEditTool
+# from moatless.actions.append_string import AppendString
+# from moatless.actions.apply_change_and_test import ApplyCodeChangeAndTest
+# from moatless.actions.code_change import RequestCodeChange
+# from moatless.actions.create_file import CreateFile
+# from moatless.actions.edit import ClaudeEditTool
 from moatless.actions.finish import Finish
-from moatless.actions.list_files import ListFiles
+# from moatless.actions.list_files import ListFiles
 from moatless.actions.reject import Reject
-from moatless.actions.run_tests import RunTests
-from moatless.actions.string_replace import StringReplace
-from moatless.actions.verified_finish import VerifiedFinish
+# from moatless.actions.run_tests import RunTests
+# from moatless.actions.string_replace import StringReplace
+# from moatless.actions.verified_finish import VerifiedFinish
 from moatless.agent.agent import ActionAgent
 from moatless.agent.code_prompts import (
     AGENT_ROLE,
